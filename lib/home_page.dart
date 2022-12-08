@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:snake_game_flutter/highscore_tile.dart';
 
 import 'package:snake_game_flutter/snake_pixel.dart';
 
@@ -27,6 +29,8 @@ class _HomePageState extends State<HomePage> {
   int currentScore = 0;
   bool gamehasStarted = false;
 
+  final _nameController = TextEditingController();
+
   //snake position
   List<int> snakepos = [
     0,
@@ -39,6 +43,27 @@ class _HomePageState extends State<HomePage> {
 
   //food position
   int foodPos = 55;
+
+  //high scores list
+  List<String> highscore_DocIds = [];
+  late final Future? letsGetDocIds;
+
+  @override
+  void initState() {
+    letsGetDocIds = getDocId();
+    super.initState();
+  }
+
+  Future getDocId() async {
+    await FirebaseFirestore.instance
+        .collection("highscores")
+        .orderBy("score", descending: true)
+        .limit(10)
+        .get()
+        .then((value) => value.docs.forEach((element) {
+              highscore_DocIds.add(element.reference.id);
+            }));
+  }
 
   //start the game
   void startGame() {
@@ -62,6 +87,7 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       Text('Your score is: ' + currentScore.toString()),
                       TextField(
+                        controller: _nameController,
                         decoration: InputDecoration(hintText: 'Enter name'),
                       ),
                     ],
@@ -84,7 +110,9 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void newGame() {
+  Future newGame() async {
+    highscore_DocIds = [];
+    await getDocId();
     setState(() {
       snakepos = [
         0,
@@ -98,7 +126,16 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void submitScore() {}
+  void submitScore() {
+    //get access to the collection
+    var database = FirebaseFirestore.instance;
+
+    //add data to firebase
+    database.collection('highscores').add({
+      "name": _nameController.text,
+      "score": currentScore,
+    });
+  }
 
   void eatFood() {
     currentScore++;
@@ -181,81 +218,101 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    //get the screen width
+    double screenWidth = MediaQuery.of(context).size.width;
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Column(children: [
-        //high scores
-        Expanded(
-            child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            //user current score
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('Current score'),
-                Text(
-                  currentScore.toString(),
-                  style: TextStyle(fontSize: 36),
+      body: SizedBox(
+        width: screenWidth > 428 ? 428 : screenWidth,
+        child: Column(children: [
+          //high scores
+          Expanded(
+              child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              //user current score
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Current score'),
+                    Text(
+                      currentScore.toString(),
+                      style: TextStyle(fontSize: 36),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
 
-            //high scores top 5 or 10
-            Text('highscores..'),
-          ],
-        )),
+              //high scores top 5 or 10
+              Expanded(
+                child: gamehasStarted
+                    ? Container()
+                    : FutureBuilder(
+                        future: letsGetDocIds,
+                        builder: (context, snapshot) {
+                          return ListView.builder(
+                              itemCount: highscore_DocIds.length,
+                              itemBuilder: ((context, index) {
+                                return HighScoreTile(
+                                    documentId: highscore_DocIds[index]);
+                              }));
+                        }),
+              ),
+            ],
+          )),
 
-        // games grid
+          // games grid
 
-        Expanded(
-            flex: 3,
-            child: GestureDetector(
-              onVerticalDragUpdate: (details) {
-                if (details.delta.dy > 0 &&
-                    currentDirection != snake_Direction.UP) {
-                  currentDirection = snake_Direction.DOWN;
-                } else if (details.delta.dy < 0 &&
-                    currentDirection != snake_Direction.DOWN) {
-                  currentDirection = snake_Direction.UP;
-                }
-              },
-              onHorizontalDragUpdate: (details) {
-                if (details.delta.dx > 0 &&
-                    currentDirection != snake_Direction.LEFT) {
-                  currentDirection = snake_Direction.RIGHT;
-                } else if (details.delta.dx < 0 &&
-                    currentDirection != snake_Direction.RIGHT) {
-                  currentDirection = snake_Direction.LEFT;
-                }
-              },
-              child: GridView.builder(
-                itemCount: totalNumbersOfSquares,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: rowSize),
-                itemBuilder: (context, index) {
-                  if (snakepos.contains(index)) {
-                    return const SnakePixel();
-                  } else if (foodPos == index) {
-                    return const FoodPixel();
-                  } else {
-                    return const BlankPixel();
+          Expanded(
+              flex: 3,
+              child: GestureDetector(
+                onVerticalDragUpdate: (details) {
+                  if (details.delta.dy > 0 &&
+                      currentDirection != snake_Direction.UP) {
+                    currentDirection = snake_Direction.DOWN;
+                  } else if (details.delta.dy < 0 &&
+                      currentDirection != snake_Direction.DOWN) {
+                    currentDirection = snake_Direction.UP;
                   }
                 },
-              ),
+                onHorizontalDragUpdate: (details) {
+                  if (details.delta.dx > 0 &&
+                      currentDirection != snake_Direction.LEFT) {
+                    currentDirection = snake_Direction.RIGHT;
+                  } else if (details.delta.dx < 0 &&
+                      currentDirection != snake_Direction.RIGHT) {
+                    currentDirection = snake_Direction.LEFT;
+                  }
+                },
+                child: GridView.builder(
+                  itemCount: totalNumbersOfSquares,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: rowSize),
+                  itemBuilder: (context, index) {
+                    if (snakepos.contains(index)) {
+                      return const SnakePixel();
+                    } else if (foodPos == index) {
+                      return const FoodPixel();
+                    } else {
+                      return const BlankPixel();
+                    }
+                  },
+                ),
+              )),
+          // play button
+          Expanded(
+              child: Container(
+            child: Center(
+                child: MaterialButton(
+              onPressed: gamehasStarted ? () {} : startGame,
+              child: Text('PLAY'),
+              color: gamehasStarted ? Colors.grey : Colors.pink,
             )),
-        // play button
-        Expanded(
-            child: Container(
-          child: Center(
-              child: MaterialButton(
-            onPressed: gamehasStarted ? () {} : startGame,
-            child: Text('PLAY'),
-            color: gamehasStarted ? Colors.grey : Colors.pink,
           )),
-        )),
-      ]),
+        ]),
+      ),
     );
   }
 }
