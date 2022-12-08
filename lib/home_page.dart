@@ -6,6 +6,7 @@ import 'package:snake_game_flutter/snake_pixel.dart';
 
 import 'blank_pixel.dart';
 import 'food_pixel.dart';
+import 'dart:math';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -22,6 +23,10 @@ class _HomePageState extends State<HomePage> {
   int rowSize = 10;
   int totalNumbersOfSquares = 100;
 
+  //user score
+  int currentScore = 0;
+  bool gamehasStarted = false;
+
   //snake position
   List<int> snakepos = [
     0,
@@ -37,15 +42,70 @@ class _HomePageState extends State<HomePage> {
 
   //start the game
   void startGame() {
+    gamehasStarted = true;
     Timer.periodic(Duration(milliseconds: 200), (timer) {
       setState(() {
         //keep the snake moving
         moveSnake();
+
+        //check if the game is over
+        if (gameOver()) {
+          timer.cancel();
+          //display a message to user
+          showDialog(
+              barrierDismissible: false,
+              context: context,
+              builder: (context) {
+                return AlertDialog(
+                  title: Text('Game over'),
+                  content: Column(
+                    children: [
+                      Text('Your score is: ' + currentScore.toString()),
+                      TextField(
+                        decoration: InputDecoration(hintText: 'Enter name'),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    MaterialButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        submitScore();
+                        newGame();
+                      },
+                      child: Text('Subimit'),
+                      color: Colors.pink,
+                    )
+                  ],
+                );
+              });
+        }
       });
     });
   }
 
-  void eatFood() {}
+  void newGame() {
+    setState(() {
+      snakepos = [
+        0,
+        1,
+        2,
+      ];
+      foodPos = 55;
+      currentDirection = snake_Direction.RIGHT;
+      gamehasStarted = false;
+      currentScore = 0;
+    });
+  }
+
+  void submitScore() {}
+
+  void eatFood() {
+    currentScore++;
+    while (snakepos.contains(foodPos)) {
+      foodPos = Random().nextInt(totalNumbersOfSquares);
+    }
+  }
 
   void moveSnake() {
     switch (currentDirection) {
@@ -60,7 +120,6 @@ class _HomePageState extends State<HomePage> {
           // add a head
 
           // remove tail
-          snakepos.removeAt(0);
         }
         break;
       case snake_Direction.LEFT:
@@ -69,10 +128,10 @@ class _HomePageState extends State<HomePage> {
           if (snakepos.last % rowSize == 0) {
             snakepos.add(snakepos.last - 1 + rowSize);
           } else {
+            //remove tail
             snakepos.add(snakepos.last - 1);
           }
           // remove tail
-          snakepos.removeAt(0);
         }
         break;
       case snake_Direction.UP:
@@ -84,7 +143,6 @@ class _HomePageState extends State<HomePage> {
             snakepos.add(snakepos.last - rowSize);
           }
           // remove tail
-          snakepos.removeAt(0);
         }
         break;
       case snake_Direction.DOWN:
@@ -95,15 +153,30 @@ class _HomePageState extends State<HomePage> {
             snakepos.add(snakepos.last + rowSize);
           }
           // remove tail
-          snakepos.removeAt(0);
         }
         break;
       default:
     }
-
+    //snake is eating the food
     if (snakepos.last == foodPos) {
       eatFood();
+    } else {
+      snakepos.removeAt(0);
     }
+  }
+
+  //game over
+  bool gameOver() {
+    //the game is over when the snake rubns into itself
+    //this occurs when there is a duplicate position in the snake position list
+
+    //this list is the body of the snake (no head)
+    List<int> bodySnake = snakepos.sublist(0, snakepos.length - 1);
+    if (bodySnake.contains(snakepos.last)) {
+      return true;
+    }
+
+    return false;
   }
 
   @override
@@ -112,7 +185,26 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: Colors.black,
       body: Column(children: [
         //high scores
-        Expanded(child: Container()),
+        Expanded(
+            child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            //user current score
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('Current score'),
+                Text(
+                  currentScore.toString(),
+                  style: TextStyle(fontSize: 36),
+                ),
+              ],
+            ),
+
+            //high scores top 5 or 10
+            Text('highscores..'),
+          ],
+        )),
 
         // games grid
 
@@ -158,9 +250,9 @@ class _HomePageState extends State<HomePage> {
             child: Container(
           child: Center(
               child: MaterialButton(
-            onPressed: startGame,
+            onPressed: gamehasStarted ? () {} : startGame,
             child: Text('PLAY'),
-            color: Colors.pink,
+            color: gamehasStarted ? Colors.grey : Colors.pink,
           )),
         )),
       ]),
